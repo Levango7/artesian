@@ -1,0 +1,112 @@
+name: Release
+
+# 发布只在"GitHub Release 已发布"时真正上传；workflow_dispatch 用来干跑校验。
+# 绑 release 事件而不是裸 tag push：Release 上有人为闸门与发布说明，
+# 误推一个 tag 不会直接把包推到 PyPI。
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只构建与校验，不上传 PyPI"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Compute expected version
+        id: ver
+        run: |
+          # tag 是 v0.2.0 这种形式；dispatch 没有 tag，就不跟 tag 对账，
+          # 只校 pyproject 与产物自身的三处一致。
+          case "${GITHUB_REF}" in
+            refs/tags/v*) echo "want=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT" ;;
+            *) echo "want=" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Verify artifacts（内容 / py.typed / 版本一致）
+        env:
+          WANT: ${{ steps.ver.outputs.want }}
+        run: |
+          # WANT 非空时要求 tag 与 pyproject 的 version 严格相等——漏改一处，
+          # 发出去的就是"名字叫 0.2.0、里面写着 0.1.0"的包。
+          if [ -n "$WANT" ]; then
+            python tools/verify_dist.py dist "$WANT"
+          else
+            python tools/verify_dist.py dist
+          fi
+          python -m twine check --strict dist/*
+
+      - name: Install the built wheel in a clean venv and test against it
+        env:
+          WANT: ${{ steps.ver.outputs.want }}
+        run: |
+          # 这是"发布物的入口测试"：源码全绿不代表 wheel 里那份能用——
+          # package-data 漏发、模块没进包，都只在装出来的包上现形。
+          python -m venv .venv-dist
+          .venv-dist/bin/python -m pip install --upgrade pip
+          .venv-dist/bin/python -m pip install dist/*.whl
+          .venv-dist/bin/python tools/verify_dist.py dist "${WANT}" --installed
+          .venv-dist/bin/python -m pip install pytest
+          # 从仓库外面跑，保证 import 命中装出来的那份而不是 src/
+          cd "$RUNNER_TEMP"
+          "$GITHUB_WORKSPACE/.venv-dist/bin/python" -m pytest \
+            "$GITHUB_WORKSPACE/tests" -q -p no:cacheprovider --no-header
+
+      - name: Upload dist（publish 用的就是这份字节，不重建）
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    # Trusted Publishing（OIDC）：仓库里不存长期 token；需要在 PyPI 项目设置里
+    # 一次性把本仓登记为 publisher，步骤见 README「发布」。
+    if: >-
+      github.event_name == 'release'
+      || (github.event_name == 'workflow_dispatch'
+          && github.event.inputs.dry_run == 'false')
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write        # 换一次性上传凭证
+    steps:
+      - name: Download dist from verify
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Show what will be published
+        run: ls -l dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          verbose: true

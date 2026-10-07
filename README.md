@@ -69,3 +69,53 @@ pip install -e ".[html,dev]"        # 本地语义嵌入（local 后端）另加
 
 **309 个测试本机全绿**（2026-10-07 本机实测：`308 passed, 1 skipped`——orjson 回退
 模拟用例在装有 orjson 时按设计跳过；`python -m pytest tests/ -q`）
+
+## 发布（PyPI）
+
+流水线在 `.github/workflows/release.yml`：**只在 GitHub Release 被"published"时才真上传**，
+误推 tag 不会发包。要干跑就 `workflow_dispatch`（默认 `dry_run=true`，只构建与校验）。
+
+`verify` 这一步跑四件事，任何一件不过就不会上传：
+
+1. `python -m build` 出 sdist + wheel；
+2. `tools/verify_dist.py dist <tag 版本>`：产物文件名 / `pyproject` 的 version /
+   装好之后的 `__version__` 与包元数据四处必须相等；wheel 内容必须与 `src/artesian/`
+   **逐个文件对齐**（新增模块忘了进包会当场红）；`py.typed` 必须在 wheel 与 sdist
+   里都在——它丢了消费方 mypy 不报错，只会静默退化成 `Any`；
+3. `twine check --strict`；
+4. **把 wheel 装进干净 venv，再从仓库外面跑一遍测试**（源码全绿不代表 wheel 里那份能用）。
+
+`publish` 用 Trusted Publishing（OIDC），**仓库里不存长期 token**；它搬运 `verify`
+那份产物字节，不重新构建。
+
+### 一次性配置（缺这一步，publish 会红）
+
+1. PyPI 上确认包名 `artesian` 归你（2026-10-07 实测该名字未被占用，返回 404）；
+   若需要，先在 PyPI 建 project（可不传包，只占名）。
+2. PyPI → 该 Project → **Publishing → Trusted Publisher**：
+   provider 选 GitHub，仓库 `Levango7/artesian`，
+   workflow 名 `release.yml`，environment 填 `pypi`（与流水线里的
+   `environment: pypi` 必须逐字一致；不填就选"不绑定 environment"）。
+3. GitHub → Settings → Secrets and variables → Actions → Environments → 新建 `pypi`；
+   想要人工闸门就勾 "Required reviewers"（发布时会等你批准）。
+
+### 每次发版
+
+```bash
+# 1. 先改版本号，再打 tag——顺序反了会被上面第 2 条判红
+python - <<'PY'
+import pathlib, re
+p = pathlib.Path("pyproject.toml")
+p.write_text(re.sub(r'^version = ".*"', 'version = "0.1.1"',
+                    p.read_text(encoding="utf-8"), count=1, flags=re.M), encoding="utf-8")
+PY
+git commit -am "chore: 版本 0.1.1" && git push
+
+# 2. 打 tag 并发布 Release（发布动作本身触发上传）
+git tag v0.1.1 && git push origin v0.1.1
+gh release create v0.1.1 --generate-notes --target v0.1.1
+```
+
+发完之后，消费方（doc-pipeline）就可以把 `artesian @ git+…@<sha>` 换成
+`artesian>=0.1.1`，"每次库改动都要手改 sha"这条成本随之消失；
+它的分层判据两种形态都认（见 doc-pipeline `tests/test_layering.py`）。
