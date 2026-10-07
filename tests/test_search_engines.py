@@ -133,7 +133,7 @@ class TestBochaSearch:
         mock_resp.read.return_value = mock_body
         mock_resp.__enter__ = lambda self: mock_resp
         mock_resp.__exit__ = lambda *a: False
-        with patch("urllib.request.urlopen", return_value=mock_resp):
+        with patch("artesian.search_engines._guarded_urlopen", return_value=mock_resp):
             results = eng.search("kafka", max_results=10)
         assert len(results) == 2
         assert results[0].title == "Kafka"
@@ -142,7 +142,7 @@ class TestBochaSearch:
     def test_search_http_error_returns_empty(self):
         """HTTP 错误时返回空列表（不抛异常）"""
         eng = BochaEngine(api_key="test")
-        with patch("urllib.request.urlopen", side_effect=Exception("conn refused")):
+        with patch("artesian.search_engines._guarded_urlopen", side_effect=Exception("conn refused")):
             results = eng.search("query")
         assert results == []
 
@@ -162,7 +162,7 @@ class TestTavilySearch:
         mock_resp.read.return_value = mock_body
         mock_resp.__enter__ = lambda self: mock_resp
         mock_resp.__exit__ = lambda *a: False
-        with patch("urllib.request.urlopen", return_value=mock_resp):
+        with patch("artesian.search_engines._guarded_urlopen", return_value=mock_resp):
             results = eng.search("test", max_results=5)
         assert len(results) == 1
         assert results[0].title == "Doc"
@@ -183,7 +183,7 @@ class TestSerperSearch:
         mock_resp.read.return_value = mock_body
         mock_resp.__enter__ = lambda self: mock_resp
         mock_resp.__exit__ = lambda *a: False
-        with patch("urllib.request.urlopen", return_value=mock_resp):
+        with patch("artesian.search_engines._guarded_urlopen", return_value=mock_resp):
             results = eng.search("kafka")
         assert results[0].title == "Kafka"  # 知识卡片在前
         assert results[0].source == "serper[kg]"
@@ -376,7 +376,7 @@ class TestFirecrawlExtractor:
         mock_resp.read.return_value = mock_body
         mock_resp.__enter__ = lambda self: mock_resp
         mock_resp.__exit__ = lambda *a: False
-        with patch("urllib.request.urlopen", return_value=mock_resp):
+        with patch("artesian.search_engines._guarded_urlopen", return_value=mock_resp):
             result = ext.scrape("http://example.com")
         assert result["success"] is True
         assert "Title" in result["markdown"]

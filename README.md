@@ -15,9 +15,10 @@ knowledge_base / search_engines）已全部在这里。
 | `selectolax_compat` | selectolax 内核（modest/lexbor）探测与显式降级（`resolve_backend` / `get_parser` / `requested_backend`） |
 | `embeddings` | 文本 → 稠密向量：hash（内置兜底）/ local（sentence-transformers）/ api（OpenAI 兼容）三后端，按可用性自动选并如实记录降级原因，含离线探测保护 |
 | `knowledge_base` | 文档切块（结构感知）→ 向量化 → SQLite 持久化 → 暴力余弦检索；含换嵌入器的向量空间保护与重建 |
-| `search_engines` | 10 个引擎统一接口（API：bocha/tavily/serper/metaso；HTML：bing/baidu/sogou/360；另 duckduckgo、prosearch、mock 桩），失败自动 fallback、结果标准化、跨查询 LRU+TTL 缓存、Firecrawl 网页提取；异步路径需 `.[search]` |
+| `search_engines` | 10 个引擎统一接口（API：bocha/tavily/serper/metaso；HTML：bing/baidu/sogou/360；另 duckduckgo、prosearch、mock 桩），失败自动 fallback、结果标准化、跨查询 LRU+TTL 缓存、Firecrawl 网页提取；异步路径需 `.[search]`。出网都走 `url_guard`（重定向逐跳复验），Firecrawl 的**目标 URL 视为不可信输入**先校验再发 |
 | `cache` | 进程内线程安全 LRU+TTL（`LRUCache`），TTL 三档语义见模块 docstring |
 | `env` | `.env` 读取与系统环境合并（`load_env`），搜索层与消费方路由层共用同一实现 |
+| `url_guard` | SSRF 校验（`validate_public_http_url`）：仅 http/https，拒私网/保留/链路本地/组播/`localhost`，域名解析全部 A/AAAA 逐条判定；解析结果带 TTL 正/负缓存（300s/60s），策略判定不入缓存 |
 
 ## 安装
 
@@ -41,6 +42,7 @@ pip install -e ".[html,dev]"        # 本地语义嵌入（local 后端）另加
 - `artesian.search_engines`：`SearchItem`、`SearchEngineBase`、`SearchEngineManager`、`create_engine`、`MockEngine`、`BochaEngine`、`TavilyEngine`、`SerperEngine`、`MetasoEngine`、`DuckDuckGoEngine`、`HtmlSearchEngine`、`BingEngine`、`BaiduEngine`、`SogouEngine`、`So360Engine`、`ProSearchEngine`、`FirecrawlExtractor`
 - `artesian.cache`：`LRUCache`
 - `artesian.env`：`load_env`
+- `artesian.url_guard`：`validate_public_http_url`、`clear_dns_cache`
 
 其中 doc-pipeline 产品代码与测试实际引用：`fast_json.dumps` / `loads`、
 `selectolax_compat` 全部条目、`embeddings` 的 `get_embedder` / `available_embedders` /
@@ -49,7 +51,9 @@ pip install -e ".[html,dev]"        # 本地语义嵌入（local 后端）另加
 `knowledge_base` 的 `KnowledgeBase` / `chunk_markdown`、
 `search_engines` 的 `SearchEngineManager` / `FirecrawlExtractor`（产品码）与
 `SearchItem` / `create_engine` / `_ENGINE_REGISTRY` / 各引擎类（判据），
-`env.load_env`（`llm_router._load_env` 现为它的别名）
+`env.load_env`（`llm_router._load_env` 现为它的别名）、
+`url_guard.validate_public_http_url`（fetcher / http_request / event_hook 三处产品码，
+库内搜索层也用它做逐跳复验；`clear_dns_cache` 只有本库判据与运行时刷新用）
 （2026-10-07 按引用点实测；`dumps_bytes` / `HAS_ORJSON` / `HashEmbedder` / `APIEmbedder` /
 `cache.LRUCache` 等其余条目为库完整 API 的一部分）。
 
@@ -58,5 +62,5 @@ pip install -e ".[html,dev]"        # 本地语义嵌入（local 后端）另加
 
 ## 测试
 
-**248 个测试本机全绿**（2026-10-07 本机实测：`247 passed, 1 skipped`——orjson 回退
+**309 个测试本机全绿**（2026-10-07 本机实测：`308 passed, 1 skipped`——orjson 回退
 模拟用例在装有 orjson 时按设计跳过；`python -m pytest tests/ -q`）

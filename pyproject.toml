@@ -42,9 +42,9 @@ markers = [
 source = ["artesian"]
 
 [tool.coverage.report]
-# 2026-10-07 实测 97.06%（248 条用例：cache/env/fast_json/embeddings/selectolax_compat
-# 均 100%，knowledge_base 96%、search_engines 96%，未覆盖者为 sqlite 自愈、
-# 引擎网络异常与并发取消等慢路径分支——迁移前后同一批分支，口径未弱化）；
+# 2026-10-07 实测 97.07%（309 条用例：cache/env/fast_json/embeddings/selectolax_compat
+# 100%，url_guard 97%、search_engines 96%、knowledge_base 96%；未覆盖者为 sqlite 自愈、
+# 引擎网络异常、并发取消与非 INET 地址族等慢路径分支）；
 # 门槛定 90 是给后续波次留缓冲，每次迁移落地后按实测上调。
 fail_under = 90
 exclude_lines = [

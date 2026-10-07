@@ -123,7 +123,7 @@ class TestMetasoEngine:
         eng = MetasoEngine(api_key="k")
         body = json.dumps({"data": {"webpages": [
             {"title": "T", "url": "https://x.com", "snippet": "S"}]}}).encode()
-        with patch("urllib.request.urlopen", return_value=_fake_urlopen(body)):
+        with patch("artesian.search_engines._guarded_urlopen", return_value=_fake_urlopen(body)):
             out = eng.search("q")
         assert len(out) == 1 and out[0].title == "T"
 
@@ -131,14 +131,14 @@ class TestMetasoEngine:
         eng = MetasoEngine(api_key="k")
         body = json.dumps({"data": {"webpages": {"list": [
             {"title": "T2", "link": "https://y.com", "summary": "S2"}]}}}).encode()
-        with patch("urllib.request.urlopen", return_value=_fake_urlopen(body)):
+        with patch("artesian.search_engines._guarded_urlopen", return_value=_fake_urlopen(body)):
             out = eng.search("q")
         assert len(out) == 1 and out[0].url == "https://y.com"
         assert out[0].snippet == "S2"
 
     def test_search_exception_returns_empty(self):
         eng = MetasoEngine(api_key="k")
-        with patch("urllib.request.urlopen", side_effect=OSError("net")):
+        with patch("artesian.search_engines._guarded_urlopen", side_effect=OSError("net")):
             assert eng.search("q") == []
 
     def test_search_async_no_key(self):
@@ -169,7 +169,7 @@ class TestDuckDuckGoEngine:
     def test_search_parses_and_decodes_uddg(self):
         eng = DuckDuckGoEngine()
         body = self.HTML.encode()
-        with patch("urllib.request.urlopen", return_value=_fake_urlopen(body)):
+        with patch("artesian.search_engines._guarded_urlopen", return_value=_fake_urlopen(body)):
             out = eng.search("q")
         assert len(out) == 1
         assert out[0].url == "https://real.com/p"
@@ -177,7 +177,7 @@ class TestDuckDuckGoEngine:
 
     def test_search_exception_returns_empty(self):
         eng = DuckDuckGoEngine()
-        with patch("urllib.request.urlopen", side_effect=OSError("blocked")):
+        with patch("artesian.search_engines._guarded_urlopen", side_effect=OSError("blocked")):
             assert eng.search("q") == []
 
 
@@ -185,7 +185,7 @@ class TestHtmlEngines:
     def test_fetch_html(self):
         eng = HtmlSearchEngine()
         body = "<html>内容</html>".encode()
-        with patch("urllib.request.urlopen", return_value=_fake_urlopen(body)):
+        with patch("artesian.search_engines._guarded_urlopen", return_value=_fake_urlopen(body)):
             assert "内容" in eng._fetch_html("https://x.com")
 
     def test_extract_results_filters(self):
@@ -274,14 +274,14 @@ class TestBochaEngine:
         eng = BochaEngine(api_key="k")
         body = json.dumps({"data": {"webPages": {"value": {"value": [
             {"name": "BN", "url": "https://b.com", "summary": "BS", "score": 0.9}]}}}}).encode()
-        with patch("urllib.request.urlopen", return_value=_fake_urlopen(body)):
+        with patch("artesian.search_engines._guarded_urlopen", return_value=_fake_urlopen(body)):
             out = eng.search("q")
         assert len(out) == 1 and out[0].title == "BN"
         assert out[0].score == 0.9
 
     def test_search_exception(self):
         eng = BochaEngine(api_key="k")
-        with patch("urllib.request.urlopen", side_effect=OSError("x")):
+        with patch("artesian.search_engines._guarded_urlopen", side_effect=OSError("x")):
             assert eng.search("q") == []
 
     def test_search_async_no_key(self):
@@ -309,7 +309,7 @@ class TestTavilyEngine:
 
     def test_search_exception(self):
         eng = TavilyEngine(api_key="k")
-        with patch("urllib.request.urlopen", side_effect=OSError("x")):
+        with patch("artesian.search_engines._guarded_urlopen", side_effect=OSError("x")):
             assert eng.search("q") == []
 
     def test_search_async_no_key(self):
@@ -336,7 +336,7 @@ class TestSerperEngine:
 
     def test_search_exception(self):
         eng = SerperEngine(api_key="k")
-        with patch("urllib.request.urlopen", side_effect=OSError("x")):
+        with patch("artesian.search_engines._guarded_urlopen", side_effect=OSError("x")):
             assert eng.search("q") == []
 
     def test_search_async_no_key(self):
@@ -366,14 +366,14 @@ class TestFirecrawlExt:
     def test_scrape_empty_content(self):
         fc = FirecrawlExtractor(api_key="k")
         body = json.dumps({"data": {"markdown": "", "metadata": {"title": "T"}}}).encode()
-        with patch("urllib.request.urlopen", return_value=_fake_urlopen(body)):
+        with patch("artesian.search_engines._guarded_urlopen", return_value=_fake_urlopen(body)):
             out = fc.scrape("https://x.com")
         assert out["success"] is False
         assert out["error"] == "empty content"
 
     def test_scrape_exception(self):
         fc = FirecrawlExtractor(api_key="k")
-        with patch("urllib.request.urlopen", side_effect=OSError("api down")):
+        with patch("artesian.search_engines._guarded_urlopen", side_effect=OSError("api down")):
             out = fc.scrape("https://x.com")
         assert out["success"] is False and "api down" in out["error"]
 

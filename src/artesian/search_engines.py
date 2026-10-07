@@ -36,8 +36,36 @@ from dataclasses import dataclass, field
 from .cache import LRUCache
 from .fast_json import dumps as _fast_dumps
 from .fast_json import loads as _fast_loads
+from .url_guard import validate_public_http_url
 
 logger = logging.getLogger(__name__)
+
+
+class _SsrfRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """每一跳重定向都重新过一遍 SSRF 校验。
+
+    `urlopen` 默认盲目跟随 3xx，而"目标主机是自己写死的公网域名"并不等于安全：
+    开放重定向、被接管的短链、改过解析的域名都能把下一跳送到
+    `169.254.169.254` 或内网。校验只作用于**重定向**，首发 URL 仍由调用方/
+    运维配置决定——自托管的 Firecrawl、内网代理这类合法端点因此不会被误伤。
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
+        ok, reason = validate_public_http_url(newurl)
+        if not ok:
+            raise urllib.error.HTTPError(
+                newurl, code, f"重定向目标未通过 SSRF 校验: {reason}", headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _guarded_urlopen(req, timeout: int):
+    """带 SSRF 重定向校验的 urlopen。
+
+    opener 每次新建（不共享）：这些引擎会被 `search_async` 丢进线程池并发调用，
+    OpenerDirector 不是并发安全的对象，省一点构造成本不值当。
+    """
+    opener = urllib.request.build_opener(_SsrfRedirectHandler())
+    return opener.open(req, timeout=timeout)
 
 
 @dataclass
@@ -142,7 +170,7 @@ class MetasoEngine(SearchEngineBase):
                     "Authorization": f"Bearer {self._api_key}",
                 },
             )
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with _guarded_urlopen(req, timeout=15) as resp:
                 body = _fast_loads(resp.read().decode())
 
             results = []
@@ -221,7 +249,7 @@ class DuckDuckGoEngine(SearchEngineBase):
                 self._api_url, data=data,
                 headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
             )
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with _guarded_urlopen(req, timeout=15) as resp:
                 html = resp.read().decode("utf-8", errors="ignore")
 
             results = []
@@ -263,7 +291,7 @@ class HtmlSearchEngine(SearchEngineBase):
     def _fetch_html(self, url: str, data: bytes = None) -> str:
         headers = {"User-Agent": self._ua, "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"}
         req = urllib.request.Request(url, data=data, headers=headers)
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with _guarded_urlopen(req, timeout=15) as resp:
             return resp.read().decode("utf-8", errors="ignore")  # type: ignore[no-any-return]
 
     def _extract_results(self, html: str, query: str,
@@ -466,7 +494,7 @@ class BochaEngine(SearchEngineBase):
                     "Authorization": f"Bearer {self._api_key}",
                 },
             )
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with _guarded_urlopen(req, timeout=15) as resp:
                 body = _fast_loads(resp.read().decode())
 
             results = []
@@ -570,7 +598,7 @@ class TavilyEngine(SearchEngineBase):
                     "Authorization": f"Bearer {self._api_key}",
                 },
             )
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with _guarded_urlopen(req, timeout=20) as resp:
                 body = _fast_loads(resp.read().decode())
 
             results = []
@@ -662,7 +690,7 @@ class SerperEngine(SearchEngineBase):
                     "X-API-KEY": self._api_key,
                 },
             )
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with _guarded_urlopen(req, timeout=15) as resp:
                 body = _fast_loads(resp.read().decode())
 
             results = []
@@ -766,6 +794,14 @@ class FirecrawlExtractor:
         if not self._api_key:
             return {"success": False, "markdown": "", "title": "", "error": "no API key"}
 
+        # 这里的 url 是**数据**（搜索结果/上游页面里的链接），不是运维配置，
+        # 所以必须先过 SSRF 校验再发给提取服务：调用方拿到的链接可以是攻击者
+        # 控制的，指向 169.254.169.254 或内网时，自托管的提取端点会替我们把它取回来。
+        ok, reason = validate_public_http_url(url)
+        if not ok:
+            logger.warning(f"Firecrawl 目标未通过 SSRF 校验: {reason}")
+            return {"success": False, "markdown": "", "title": "", "error": reason}
+
         try:
             payload = _fast_dumps({
                 "url": url,
@@ -780,7 +816,7 @@ class FirecrawlExtractor:
                     "Authorization": f"Bearer {self._api_key}",
                 },
             )
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with _guarded_urlopen(req, timeout=timeout) as resp:
                 body = _fast_loads(resp.read().decode())
 
             data = body.get("data", body)
