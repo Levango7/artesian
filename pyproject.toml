@@ -17,6 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 html = ["selectolax>=0.3.0"]    # selectolax_compat 探测的内核（modest/lexbor）
 embed = ["sentence-transformers>=2.2.0"]    # embeddings 的 local 语义后端（可选，模型权重另需下载）
+search = ["aiohttp>=3.9"]       # search_engines 里 API 引擎（bocha/tavily/serper/metaso）的异步路径；缺包时同步 search() 照常
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
@@ -41,9 +42,10 @@ markers = [
 source = ["artesian"]
 
 [tool.coverage.report]
-# 2026-10-07 实测 98.29%（125 条用例：embeddings 100%、knowledge_base 96%，
-# 未覆盖者为 sqlite 自愈/embed 失败等慢路径分支）；门槛定 90 是给后续
-# search_engines 迁移留缓冲，每次迁移落地后按实测上调。
+# 2026-10-07 实测 97.06%（248 条用例：cache/env/fast_json/embeddings/selectolax_compat
+# 均 100%，knowledge_base 96%、search_engines 96%，未覆盖者为 sqlite 自愈、
+# 引擎网络异常与并发取消等慢路径分支——迁移前后同一批分支，口径未弱化）；
+# 门槛定 90 是给后续波次留缓冲，每次迁移落地后按实测上调。
 fail_under = 90
 exclude_lines = [
     "pragma: no cover",
