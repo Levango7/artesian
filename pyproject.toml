@@ -16,6 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 html = ["selectolax>=0.3.0"]    # selectolax_compat 探测的内核（modest/lexbor）
+embed = ["sentence-transformers>=2.2.0"]    # embeddings 的 local 语义后端（可选，模型权重另需下载）
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
@@ -37,8 +38,9 @@ markers = [
 source = ["artesian"]
 
 [tool.coverage.report]
-# 2026-10-07 首轮全量实测 100%（35 条用例）；门槛定 90 是给后续迁移
-# （knowledge_base/embeddings/search_engines）留缓冲，每次迁移落地后按实测上调。
+# 2026-10-07 实测 98.29%（125 条用例：embeddings 100%、knowledge_base 96%，
+# 未覆盖者为 sqlite 自愈/embed 失败等慢路径分支）；门槛定 90 是给后续
+# search_engines 迁移留缓冲，每次迁移落地后按实测上调。
 fail_under = 90
 exclude_lines = [
     "pragma: no cover",
