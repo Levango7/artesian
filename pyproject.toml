@@ -23,6 +23,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4.0",
     "mypy>=1.10.0",
+    "bandit>=1.7.0",           # CI 的 Security scan 步骤要用；不装就只会跳过一条门禁
 ]
 
 [tool.setuptools.packages.find]

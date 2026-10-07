@@ -34,6 +34,39 @@ jobs:
       - name: Type check (mypy)
         run: python -m mypy src/artesian
 
+      - name: Security scan (bandit)
+        run: |
+          # 与消费方 doc-pipeline 同口径：`-ll` 只把 MEDIUM+ 当红。
+          # 这里 MEDIUM 是 0 条，但**不是因为扫不出问题**：搜索层出网已改成
+          # build_opener().open()，而 bandit 的 B310 只认 urllib.request.urlopen
+          # 这个入口名，所以那类告警随入口一起消失。LOW 级另立账目，见下。
+          python -m bandit -ll -r src
+
+          # LOW 级棘轮：钉住种类集合，变了就必须回这里显式改并附理由——
+          # 不允许靠 -ll 的阈值悄悄吸收新告警。实测三条，全在 ProSearchEngine
+          # 的子进程调用：B404（import subprocess）／B603（子进程调用，参数是
+          # argv 列表、无 shell）／B607（node 由 PATH 解析起步）。脚本路径只能由
+          # PROSEARCH_PATH / ARTESIAN_PROSEARCH_PATHS / script_paths 显式注入，
+          # 库内不内置任何默认路径，故这三条 LOW 予以接受。
+          set +e
+          python -m bandit -r src -f json -o /tmp/bandit_all.json
+          rc=$?
+          set -e
+          if [ "$rc" -gt 1 ]; then
+            echo "::error::bandit 自身失败 (rc=$rc) — 跑不动不等于没告警"
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          raw = open("/tmp/bandit_all.json", encoding="utf-8").read()
+          results = json.loads(raw[raw.index("{"):])["results"]
+          low = sorted({r["test_id"] for r in results if r["issue_severity"] == "LOW"})
+          expected = ["B404", "B603", "B607"]
+          print("LOW 级告警集合:", low)
+          if low != expected:
+              raise SystemExit(f"LOW 级告警集合变了：期望 {expected}，实际 {low}")
+          PY
+
       - name: Run tests with coverage
         run: |
           # bare --cov 采用 pyproject [tool.coverage.run] 的源码口径（src/artesian），
