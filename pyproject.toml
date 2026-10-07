@@ -27,6 +27,9 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+artesian = ["py.typed"]    # PEP 561：消费方 mypy 按真实类型分析，否则其返回值退化为 Any
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
