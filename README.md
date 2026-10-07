@@ -2,10 +2,15 @@
 
 自流井——接通即涌的取数/知识底座。
 
-从 doc-pipeline 抽离的独立库：JSON 序列化、HTML 解析后端兼容层、
-嵌入层、知识库与搜索引擎统一接口。第三波（search_engines）落地后，
-先前规划的迁出边界（fast_json / selectolax_compat / embeddings /
-knowledge_base / search_engines）已全部在这里。
+从 doc-pipeline 抽离的独立库：JSON 序列化、HTML 解析后端兼容层、嵌入层、知识库、
+搜索引擎统一接口，外加它们共用的三件底座（`cache` / `env` / `url_guard`）。
+
+规划的迁出边界（`fast_json` / `selectolax_compat` / `embeddings` /
+`knowledge_base` / `search_engines`）已全部落地；之后又把 `url_guard` 一起归位——
+搜索层出网要用它做 SSRF 校验，留在消费方就成了"库回头够本仓"的反向耦合。
+
+当前发布 **v0.1.0**（GitHub Release）。尚未上 PyPI，消费方按提交直接引用安装，
+所以库侧每次改动都要由消费方更新那个提交号——这不是疏忽，是未发布的代价。
 
 ## 模块
 
