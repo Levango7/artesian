@@ -67,8 +67,11 @@ pip install -e ".[html,dev]"        # 本地语义嵌入（local 后端）另加
 
 ## 测试
 
-**309 个测试本机全绿**（2026-10-07 本机实测：`308 passed, 1 skipped`——orjson 回退
-模拟用例在装有 orjson 时按设计跳过；`python -m pytest tests/ -q`）
+**317 个测试本机全绿**（2026-10-08 本机实测：`316 passed, 1 skipped`——orjson 回退
+模拟用例在装有 orjson 时按设计跳过；`python -m pytest tests/ -q`）。
+其中 `tests/test_verify_dist.py` 是**发布门禁自己的判据**：8 条里有 7 条反向对照
+（版本对不上／wheel 少 `py.typed`／新模块没进包／sdist 缺 README／产物多于一个／
+dist 为空／空串版本参数），空串那条是 2026-10-08 干跑抓到并修掉的真 bug。
 
 ## 发布（PyPI）
 

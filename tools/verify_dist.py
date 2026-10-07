@@ -95,7 +95,11 @@ def main(argv: list[str]) -> int:
     installed = "--installed" in argv
     pos = [a for a in argv[1:] if not a.startswith("--")]
     dist = Path(pos[0]) if pos else REPO / "dist"
-    want = re.sub(r"^v", "", pos[1]) if len(pos) > 1 else None
+    # 空串要当"没给"：CI 里 dispatch 没有 tag，`${WANT}` 展开成空参数——
+    # 当成给了就会报"tag 要发 ，但 pyproject 是 0.1.0"（本机测时传了显式版本，
+    # 正好绕过这条，第一次在 runner 上跑才现形）。
+    want = re.sub(r"^v", "", pos[1]) if len(pos) > 1 else ""
+    want = want or None
     if not dist.is_dir():
         fail(f"dist 目录不存在：{dist}（先跑 python -m build）")
 
