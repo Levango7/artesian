@@ -20,10 +20,15 @@ pip install -e ".[html,dev]"
 
 ## 兼容承诺
 
-以下符号被消费方（doc-pipeline）实际引用，视为公开 API，0.x 内不做破坏性变更：
+以下符号视为公开 API，0.x 内不做破坏性变更。doc-pipeline 是当前唯一消费方，
+其中 `fast_json.dumps` / `fast_json.loads` 与 `selectolax_compat` 的全部条目已被
+其产品代码或测试实际引用；`dumps_bytes` / `HAS_ORJSON` 为库完整 API 的一部分：
 
 - `artesian.fast_json`：`dumps`、`loads`、`dumps_bytes`、`HAS_ORJSON`
 - `artesian.selectolax_compat`：`resolve_backend`、`requested_backend`、`get_parser`、`MODULES`、`ENV_OVERRIDE`
+
+注：`selectolax_compat._load` 是私有实现，但消费方测试直接引用它做探测断言
+（`MODULES` × `_load`），重命名时必须同步两仓；如有真实外部需求再提升为公开。
 
 ## 测试
 
