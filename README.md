@@ -93,14 +93,28 @@ dist 为空／空串版本参数），空串那条是 2026-10-08 干跑抓到并
 
 ### 一次性配置（缺这一步，publish 会红）
 
-1. PyPI 上确认包名 `artesian` 归你（2026-10-07 实测该名字未被占用，返回 404）；
-   若需要，先在 PyPI 建 project（可不传包，只占名）。
-2. PyPI → 该 Project → **Publishing → Trusted Publisher**：
-   provider 选 GitHub，仓库 `Levango7/artesian`，
-   workflow 名 `release.yml`，environment 填 `pypi`（与流水线里的
-   `environment: pypi` 必须逐字一致；不填就选"不绑定 environment"）。
-3. GitHub → Settings → Secrets and variables → Actions → Environments → 新建 `pypi`；
-   想要人工闸门就勾 "Required reviewers"（发布时会等你批准）。
+先说一个坑：`https://pypi.org/project/artesian/` 现在会回 **200**，但正文是
+"Client Challenge / JavaScript is disabled" 的反爬页——**别拿它当"名字被占用"的证据**。
+判存在与否要看 `https://pypi.org/pypi/<name>/json` 或 `https://pypi.org/simple/<name>/`
+（2026-10-08 两条都回 404，同法验 `requests` 回 200 证明探针是活的）⇒ 名字空闲。
+
+PyPI 的正式 Trusted Publisher **只能加在已存在的项目上**，所以首次发布有两条路：
+
+- **路 A（一次 API token，之后转 OIDC）**：项目还不存在时无法建"按项目 scope"的 token，
+  所以第一次用**账号级** upload token 走 `twine upload`；项目一存在，就按下面的步骤
+  登记 publisher，之后发版全靠流水线、仓库里不留长期凭证。
+- **路 B（账号级预绑定）**：在 PyPI 账号的 Publishing 页添加 **pending publisher**
+  （绑定 GitHub 仓库 `Levango7/artesian` + workflow `release.yml`），
+  首次成功上传后 PyPI 会自动把它转成该项目的正式 publisher。
+  （这条以 PyPI 控制台实际界面为准，官方文档在
+  `https://docs.pypi.org/trusted-publishers/`；别照本仓库的措辞去猜 URL。）
+
+登记 publisher 时：provider 选 GitHub，仓库 `Levango7/artesian`，
+workflow 名 `release.yml`，environment 填 `pypi` —— 必须与流水线里的
+`environment: pypi` **逐字一致**；不想用 environment 就两边都不填。
+
+最后 GitHub → Settings → Secrets and variables → Actions → Environments → 新建 `pypi`；
+想要人工闸门就勾 "Required reviewers"（发布时会等你批准）。
 
 ### 每次发版
 
